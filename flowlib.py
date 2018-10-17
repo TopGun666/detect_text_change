@@ -87,15 +87,18 @@ def read_flow(filename):
     :return: optical flow data in matrix
     """
     f = open(filename, 'rb')
-    magic = np.fromfile(f, np.float32, count=1)
+    try:
+        magic = np.fromfile(f, np.float32, count=1)[0]    # For Python3.x
+    except:
+        magic = np.fromfile(f, np.float32, count=1)       # For Python2.x
     data2d = None
 
     if 202021.25 != magic:
-        print 'Magic number incorrect. Invalid .flo file'
+        print('Magic number incorrect. Invalid .flo file')
     else:
         w = np.fromfile(f, np.int32, count=1)
         h = np.fromfile(f, np.int32, count=1)
-        print "Reading %d x %d flo file" % (h, w)
+        #print("Reading %d x %d flo file" % (h, w))
         data2d = np.fromfile(f, np.float32, count=2 * w * h)
         # reshape data into 3D array (columns, rows, channels)
         data2d = np.resize(data2d, (h[0], w[0], 2))
@@ -237,7 +240,7 @@ def flow_error(tu, tv, u, v):
     return mepe
 
 
-def flow_to_image(flow):
+def flow_to_image(flow, display=False):
     """
     Convert flow into middlebury color code image
     :param flow: optical flow map
@@ -264,7 +267,8 @@ def flow_to_image(flow):
     rad = np.sqrt(u ** 2 + v ** 2)
     maxrad = max(-1, np.max(rad))
 
-    print "max flow: %.4f\nflow range:\nu = %.3f .. %.3f\nv = %.3f .. %.3f" % (maxrad, minu,maxu, minv, maxv)
+    if display:
+        print("max flow: %.4f\nflow range:\nu = %.3f .. %.3f\nv = %.3f .. %.3f" % (maxrad, minu,maxu, minv, maxv))
 
     u = u/(maxrad + np.finfo(float).eps)
     v = v/(maxrad + np.finfo(float).eps)

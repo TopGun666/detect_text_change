@@ -41,3 +41,18 @@ def antipad(tensor, num=1):
     """
     batch, h, w, c = tensor.shape.as_list()
     return tf.slice(tensor, begin=[0, num, num, 0], size=[batch, h - 2 * num, w - 2 * num, c])
+
+# Reference: https://github.com/scaelles/OSVOS-TensorFlow/blob/master/osvos.py
+def crop_features(feature, out_size):
+    """Crop the center of a feature map
+    Args:
+    feature: Feature map to crop
+    out_size: Size of the output feature map
+    Returns:
+    Tensor that performs the cropping
+    """
+    up_size = tf.shape(feature)
+    ini_w = tf.div(tf.subtract(up_size[1], out_size[1]), 2)
+    ini_h = tf.div(tf.subtract(up_size[2], out_size[2]), 2)
+    slice_input = tf.slice(feature, (0, ini_w, ini_h, 0), (-1, out_size[1], out_size[2], -1))
+    return tf.reshape(slice_input, [int(feature.get_shape()[0]), out_size[1], out_size[2], int(feature.get_shape()[3])])

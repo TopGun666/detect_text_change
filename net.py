@@ -61,13 +61,13 @@ class Net(object):
         }
         predictions = self.model(inputs, training_schedule)
         pred_flow = predictions['flow']
-
+        #pred_flow = predictions['predict_flow0']
+        
         saver = tf.train.Saver()
-
         with tf.Session() as sess:
             saver.restore(sess, checkpoint)
             pred_flow = sess.run(pred_flow)[0, :, :, :]
-
+            #import ipdb; ipdb.set_trace()
             unique_name = 'flow-' + str(uuid.uuid4())
             if save_image:
                 flow_img = flow_to_image(pred_flow)

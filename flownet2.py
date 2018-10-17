@@ -2,12 +2,13 @@ from ..net import Net, Mode
 from ..flownet_css.flownet_css import FlowNetCSS
 from ..flownet_sd.flownet_sd import FlowNetSD
 from ..flow_warp import flow_warp
-from ..utils import LeakyReLU, average_endpoint_error, pad, antipad
+from ..utils import LeakyReLU, average_endpoint_error, pad, antipad, crop_features
 from ..downsample import downsample
 import tensorflow as tf
 slim = tf.contrib.slim
 
 
+# (Yuliang) Replace antipad() with crop_features()
 class FlowNet2(Net):
 
     def __init__(self, mode=Mode.TRAIN, debug=False):
@@ -61,41 +62,30 @@ class FlowNet2(Net):
                     fuse_conv0 = slim.conv2d(pad(input_to_fusion), 64, 3, scope='fuse_conv0')
                     fuse_conv1 = slim.conv2d(pad(fuse_conv0), 64, 3, stride=2, scope='fuse_conv1')
                     fuse_conv1_1 = slim.conv2d(pad(fuse_conv1), 128, 3, scope='fuse_conv1_1')
-                    fuse_conv2 = slim.conv2d(pad(fuse_conv1_1), 128, 3,
-                                             stride=2, scope='fuse_conv2')
+                    fuse_conv2 = slim.conv2d(pad(fuse_conv1_1), 128, 3, stride=2, scope='fuse_conv2')
                     fuse_conv2_1 = slim.conv2d(pad(fuse_conv2), 128, 3, scope='fuse_conv2_1')
 
-                    predict_flow2 = slim.conv2d(pad(fuse_conv2_1), 2, 3,
-                                                scope='predict_flow2',
-                                                activation_fn=None)
-                    fuse_deconv1 = antipad(slim.conv2d_transpose(fuse_conv2_1, 32, 4,
-                                                                 stride=2,
-                                                                 scope='fuse_deconv1'))
-                    fuse_upsample_flow2to1 = antipad(slim.conv2d_transpose(predict_flow2, 2, 4,
-                                                                           stride=2,
-                                                                           scope='fuse_upsample_flow2to1',
-                                                                           activation_fn=None))
-                    concat1 = tf.concat([fuse_conv1_1, fuse_deconv1,
-                                         fuse_upsample_flow2to1], axis=3)
-                    fuse_interconv1 = slim.conv2d(pad(concat1), 32, 3,
-                                                  activation_fn=None, scope='fuse_interconv1')
+                    predict_flow2 = slim.conv2d(pad(fuse_conv2_1), 2, 3, scope='predict_flow2', activation_fn=None)
+                    #fuse_deconv1 = antipad(slim.conv2d_transpose(fuse_conv2_1, 32, 4, stride=2, scope='fuse_deconv1'))
+                    #fuse_upsample_flow2to1 = antipad(slim.conv2d_transpose(predict_flow2, 2, 4, stride=2, scope='fuse_upsample_flow2to1', activation_fn=None))
+                    fuse_deconv1 = slim.conv2d_transpose(fuse_conv2_1, 32, 4, stride=2, scope='fuse_deconv1')
+                    fuse_upsample_flow2to1 = slim.conv2d_transpose(predict_flow2, 2, 4, stride=2, scope='fuse_upsample_flow2to1', activation_fn=None)
+                    fuse_deconv1 = crop_features(fuse_deconv1, tf.shape(fuse_conv1_1))
+                    fuse_upsample_flow2to1 = crop_features(fuse_upsample_flow2to1, tf.shape(fuse_conv1_1))
+                    concat1 = tf.concat([fuse_conv1_1, fuse_deconv1, fuse_upsample_flow2to1], axis=3)
+                    fuse_interconv1 = slim.conv2d(pad(concat1), 32, 3, activation_fn=None, scope='fuse_interconv1')
 
-                    predict_flow1 = slim.conv2d(pad(fuse_interconv1), 2, 3,
-                                                scope='predict_flow1',
-                                                activation_fn=None)
-                    fuse_deconv0 = antipad(slim.conv2d_transpose(concat1, 16, 4,
-                                                                 stride=2,
-                                                                 scope='fuse_deconv0'))
-                    fuse_upsample_flow1to0 = antipad(slim.conv2d_transpose(predict_flow1, 2, 4,
-                                                                           stride=2,
-                                                                           scope='fuse_upsample_flow1to0',
-                                                                           activation_fn=None))
+                    predict_flow1 = slim.conv2d(pad(fuse_interconv1), 2, 3, scope='predict_flow1', activation_fn=None)
+                    #fuse_deconv0 = antipad(slim.conv2d_transpose(concat1, 16, 4, stride=2, scope='fuse_deconv0'))
+                    #fuse_upsample_flow1to0 = antipad(slim.conv2d_transpose(predict_flow1, 2, 4, stride=2, scope='fuse_upsample_flow1to0', activation_fn=None))
+                    fuse_deconv0 = slim.conv2d_transpose(concat1, 16, 4, stride=2, scope='fuse_deconv0')
+                    fuse_upsample_flow1to0 = slim.conv2d_transpose(predict_flow1, 2, 4, stride=2, scope='fuse_upsample_flow1to0', activation_fn=None)
+                    fuse_deconv0 = crop_features(fuse_deconv0, tf.shape(fuse_conv0))
+                    fuse_upsample_flow1to0 = crop_features(fuse_upsample_flow1to0, tf.shape(fuse_conv0))
                     concat0 = tf.concat([fuse_conv0, fuse_deconv0, fuse_upsample_flow1to0], axis=3)
-                    fuse_interconv0 = slim.conv2d(pad(concat0), 16, 3,
-                                                  activation_fn=None, scope='fuse_interconv0')
+                    fuse_interconv0 = slim.conv2d(pad(concat0), 16, 3, activation_fn=None, scope='fuse_interconv0')
 
-                    predict_flow0 = slim.conv2d(pad(fuse_interconv0), 2,
-                                                3, activation_fn=None, scope='predict_flow0')
+                    predict_flow0 = slim.conv2d(pad(fuse_interconv0), 2, 3, activation_fn=None, scope='predict_flow0')
 
                     flow = tf.image.resize_bilinear(
                         predict_flow0, tf.stack([height, width]), align_corners=True)
